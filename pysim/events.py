@@ -1,0 +1,15 @@
+"""Events defined in the simulation model.
+"""
+START_ROUND = 'Start round'
+UPDATE_POSITIONS = 'Update positions'
+READER_TX_END = 'Reader TX finished'
+READER_RX_START = 'Reader RX started'
+READER_RX_END = 'Reader RX finished'
+READER_SEND_COMMAND = 'Send command'
+READER_NO_REPLY = 'No reply'
+TAG_TX_END = 'Tag TX finished'
+TAG_RX_START = 'Tag RX started'
+TAG_RX_END = 'Tag RX finished'
+TAG_SEND_REPLY = 'Send reply'
+TAG_TURNED_OFF = 'Tag turned off'
+TAG_TURNED_ON = 'Tag turned on'
