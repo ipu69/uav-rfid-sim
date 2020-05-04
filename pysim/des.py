@@ -87,6 +87,7 @@ class Kernel:
         self.__num_events = 0
         self.__queue_size = 0
         self.__stop_predicates = []
+        self.__events_mapping = {}
 
     @property
     def sim_time(self):
@@ -115,6 +116,20 @@ class Kernel:
         heapq.heappush(self.__queue, event)
         self.__queue_size += 1
         return event.event_id
+
+    def bind(self, event_name, handler):
+        try:
+            handlers_list = self.__events_mapping[event_name]
+            if handler not in handlers_list:
+                handlers_list.append(handler)
+        except KeyError:
+            self.__events_mapping[event_name] = [handler]
+
+    def unbind(self, name, handler):
+        try:
+            self.__events_mapping[name].remove(handler)
+        except KeyError:
+            pass
 
     def remove_event(self, event_id):
         event = self.__event_ids.get(event_id, None)
@@ -162,7 +177,8 @@ class Kernel:
                 break
 
             try:
-                handlers_list = DES.events_mapping.get(event.name, [])
+                handlers_list = self.__events_mapping.get(event.name, [])
+                handlers_list.extend(DES.events_mapping.get(event.name, []))
             except KeyError:
                 raise RuntimeError(f'event "{event.name}" not defined')
 
@@ -279,6 +295,12 @@ class Simulator:
     @property
     def logger(self):
         return self.__logger
+
+    def bind(self, event_name, handler):
+        self.__kernel.bind(event_name, handler)
+
+    def unbind(self, event_name, handler):
+        self.__kernel.unbind(event_name, handler)
 
 
 class DES:

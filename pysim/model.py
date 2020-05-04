@@ -5,7 +5,7 @@ from random import randint, random
 from numpy import asarray
 
 from pysim import events
-from pysim.des import DESModel, DES
+from pysim.des import DESModel
 from pysim.protocol import Query, TagEncoding, DR, Session, InventoryFlag, Sel, \
     ReaderFrame, QueryRep, Ack, QueryReply, get_blf, min_t1, t3, AckReply, \
     TagFrame
@@ -78,31 +78,31 @@ class Network(DESModel):
     def initialize(self):
         # TODO: move DES.on and DES.delete_handler to kernel
         # Subscribe to events:
-        DES.on(events.TAG_RX_START, self._handle_tag_rx_start)
-        DES.on(events.TAG_TX_END, self._handle_tag_tx_end)
-        DES.on(events.TAG_RX_END, self._handle_tag_rx_end)
-        DES.on(events.TAG_TURNED_OFF, self.reader.tag_turned_off)
-        DES.on(events.READER_RX_START, self.reader.start_rx)
-        DES.on(events.READER_RX_END, self.reader.finish_rx)
-        DES.on(events.READER_TX_END, self.reader.finish_tx)
-        DES.on(events.READER_SEND_COMMAND, self.reader.send_command)
-        DES.on(events.READER_NO_REPLY, self.reader.no_reply)
-        DES.on(events.UPDATE_POSITIONS, self.update_positions)
-        DES.on(events.START_ROUND, self.reader.start_round)
+        self.sim.bind(events.TAG_RX_START, self._handle_tag_rx_start)
+        self.sim.bind(events.TAG_TX_END, self._handle_tag_tx_end)
+        self.sim.bind(events.TAG_RX_END, self._handle_tag_rx_end)
+        self.sim.bind(events.TAG_TURNED_OFF, self.reader.tag_turned_off)
+        self.sim.bind(events.READER_RX_START, self.reader.start_rx)
+        self.sim.bind(events.READER_RX_END, self.reader.finish_rx)
+        self.sim.bind(events.READER_TX_END, self.reader.finish_tx)
+        self.sim.bind(events.READER_SEND_COMMAND, self.reader.send_command)
+        self.sim.bind(events.READER_NO_REPLY, self.reader.no_reply)
+        self.sim.bind(events.UPDATE_POSITIONS, self.update_positions)
+        self.sim.bind(events.START_ROUND, self.reader.start_round)
 
     def finalize(self):
         # Subscribe to events:
-        DES.delete_handler(events.TAG_RX_START, self._handle_tag_rx_start)
-        DES.delete_handler(events.TAG_TX_END, self._handle_tag_tx_end)
-        DES.delete_handler(events.TAG_RX_END, self._handle_tag_rx_end)
-        DES.delete_handler(events.TAG_TURNED_OFF, self.reader.tag_turned_off)
-        DES.delete_handler(events.READER_RX_START, self.reader.start_rx)
-        DES.delete_handler(events.READER_RX_END, self.reader.finish_rx)
-        DES.delete_handler(events.READER_TX_END, self.reader.finish_tx)
-        DES.delete_handler(events.READER_SEND_COMMAND, self.reader.send_command)
-        DES.delete_handler(events.READER_NO_REPLY, self.reader.no_reply)
-        DES.delete_handler(events.UPDATE_POSITIONS, self.update_positions)
-        DES.delete_handler(events.START_ROUND, self.reader.start_round)
+        self.sim.unbind(events.TAG_RX_START, self._handle_tag_rx_start)
+        self.sim.unbind(events.TAG_TX_END, self._handle_tag_tx_end)
+        self.sim.unbind(events.TAG_RX_END, self._handle_tag_rx_end)
+        self.sim.unbind(events.TAG_TURNED_OFF, self.reader.tag_turned_off)
+        self.sim.unbind(events.READER_RX_START, self.reader.start_rx)
+        self.sim.unbind(events.READER_RX_END, self.reader.finish_rx)
+        self.sim.unbind(events.READER_TX_END, self.reader.finish_tx)
+        self.sim.unbind(events.READER_SEND_COMMAND, self.reader.send_command)
+        self.sim.unbind(events.READER_NO_REPLY, self.reader.no_reply)
+        self.sim.unbind(events.UPDATE_POSITIONS, self.update_positions)
+        self.sim.unbind(events.START_ROUND, self.reader.start_round)
 
     def get_tag(self, tag_id):
         return [tag for tag in self.tags if tag.id == tag_id][0]
