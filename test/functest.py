@@ -1,7 +1,6 @@
 from math import sin, cos, pi
 
 from pysim.utils import random_hex_string
-from pysim.protocol import DR
 from pysim import simulate
 
 
@@ -24,7 +23,7 @@ def test_reading_tags_in_circle_with_zero_ber():
     """
     R = 10    # circle radius
     H = 1.0   # reader altitude
-    V = 2.0   # meters per second, reader velocity
+    V = 4.0   # meters per second, reader velocity
     D = 2.0   # meters, channel distance
 
     spec = {
@@ -45,6 +44,8 @@ def test_reading_tags_in_circle_with_zero_ber():
             'target': 'A',
             'trajectory': {
                 'center': (0, 0, 0),
+                'angle0': 0,
+                'point_area_radius': D * 1.01,
                 'radius': R,
                 'velocity': V,  # meters per second
                 'altitude': H,  # meter
@@ -87,5 +88,8 @@ def test_reading_tags_in_circle_with_zero_ber():
     # 2) Check that no collisions appeared
     for i in range(6):
         assert ret['c1g2_stats']['num_collisions'] == 0
+
+    # 3) Check that there were exactly 2 trajectory passes
+    assert len(ret['routes']) == 2
 
     # TODO: add more inspections here

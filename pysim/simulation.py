@@ -17,17 +17,7 @@ def test_module():
           'If you see this, your PYTHONPATH is OK')
 
 
-def simulate(spec, sim_time_limit=None, logger_level=Logger.Level.WARNING):
-    print('started simulation, spec: ')
-    pprint(spec)
-    # sim_time_limit = 0.1
-    ret = DES.simulate(Network, initialize=initialize, params=spec,
-                       sim_time_limit=sim_time_limit,
-                       logger_level=logger_level)
-    # rounds = [ir for ir in ret.data.reader.rounds if ir['tags_on']]
-    # for index, inventory_round in enumerate(rounds):
-    #     print(index, ': ', inventory_round)
-
+def _extract_results(ret):
     return {
         'tags': [{
             'id': tag.id,
@@ -35,13 +25,29 @@ def simulate(spec, sim_time_limit=None, logger_level=Logger.Level.WARNING):
         } for tag in ret.data.tags],
         'c1g2_stats': {'num_collisions': ret.data.reader.num_collisions},
         'read_timestamps': ret.data.reader.read_timestamps,
+        'routes': ret.data.reader.routes,
     }
+
+
+def simulate(spec, sim_time_limit=None, logger_level=Logger.Level.WARNING,
+             pool_size=4):
+    # sim_time_limit = 0.1
+    ret = DES.simulate(Network, initialize=initialize, params=spec,
+                       sim_time_limit=sim_time_limit,
+                       logger_level=logger_level, pool_size=pool_size)
+    # rounds = [ir for ir in ret.data.reader.rounds if ir['tags_on']]
+    # for index, inventory_round in enumerate(rounds):
+    #     print(index, ': ', inventory_round)
+    try:
+        return _extract_results(ret)
+    except AttributeError:
+        return [_extract_results(item) for item in ret]
 
 
 if __name__ == '__main__':
     R = 10    # circle radius
     H = 1.0   # reader altitude
-    V = 2.0   # meters per second, reader velocity
+    V = 10.0   # meters per second, reader velocity
     D = 2.0   # meters, channel distance
 
     spec_ = {
@@ -62,12 +68,14 @@ if __name__ == '__main__':
             'target': 'A',
             'trajectory': {
                 'center': (0, 0, 0),
+                'angle0': 0,
+                'point_area_radius': D * 1.01,
                 'radius': R,
                 'velocity': V,  # meters per second
                 'altitude': H,  # meter
             },
             'stats': {
-                'record_read_timestamps': True,
+                'record_read_timestamps': False,
             }
         },
         'tags': [{
@@ -80,7 +88,7 @@ if __name__ == '__main__':
         'channel': {
             'model': 'models.channels.ConstantChannel',
             'distance': D,
-            'ber': 0.0,
+            'ber': 0.05,
         },
         'propagation': {
             'model': 'models.propagation.NoLossPropagationModel',
@@ -88,11 +96,34 @@ if __name__ == '__main__':
         },
     }
 
+
+    def update_spec(spec, path, value):
+        import copy
+        new_spec = copy.deepcopy(spec)
+        parts = path.split('.')
+        last_dict = new_spec
+        for part in parts[:-1]:
+            last_dict = last_dict[part]
+        last_dict[parts[-1]] = value
+        return new_spec
+
+    specs = [
+        update_spec(spec_, 'channel.ber', 0.00),
+        update_spec(spec_, 'channel.ber', 0.01),
+        update_spec(spec_, 'channel.ber', 0.02),
+        update_spec(spec_, 'channel.ber', 0.03),
+        # update_spec(spec_, 'channel.ber', 0.04),
+        # update_spec(spec_, 'channel.ber', 0.05),
+        # update_spec(spec_, 'channel.ber', 0.06),
+        # update_spec(spec_, 'channel.ber', 0.07),
+    ]
+
     # I define max simulation time as the time, needed to fly above each tag
     # twice, i.e. (2 - 1/12 - 0.0001) *pi*R / V. Subtracting 0.0001 is needed
     # to prohibit third attempt to connect to the first tag.
     sim_time_limit_ = (4 - 1/12 - 0.0001) * pi * R / V
 
     # Running the simulation:
-    ret_ = simulate(spec_, sim_time_limit=sim_time_limit_)
-    print(ret_)
+    ret_ = simulate(specs, sim_time_limit=sim_time_limit_,
+                    logger_level=Logger.Level.INFO, pool_size=4)
+    pprint(ret_)

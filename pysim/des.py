@@ -1,7 +1,11 @@
 import heapq
 import itertools
+from collections import namedtuple
 from enum import Enum
 from functools import total_ordering
+from multiprocessing.pool import Pool, ThreadPool
+from pprint import pformat
+
 import colorama
 
 
@@ -76,6 +80,15 @@ class _Event:
         return (self.__sim_time < other.sim_time or
                 self.__sim_time == other.sim_time and
                 self.__event_id < other.event_id)
+
+
+class _SimTimePredicate:
+    def __init__(self, kernel, sim_time_limit):
+        self.__kernel = kernel
+        self.__sim_time_limit = sim_time_limit
+
+    def __call__(self):
+        return self.__kernel.sim_time > self.__sim_time_limit
 
 
 class Kernel:
@@ -157,13 +170,12 @@ class Kernel:
         raise KeyError('pop from empty queue')
 
     def _test_stop(self):
-        return any(pred(self) for pred in self.__stop_predicates)
+        return any(pred() for pred in self.__stop_predicates)
 
     def setup(self, sim_time_limit=None):
         if sim_time_limit and sim_time_limit > 0:
             self.__stop_predicates.append(
-                lambda kern: sim_time_limit < kern.sim_time
-            )
+                _SimTimePredicate(self, sim_time_limit))
 
     def run(self, sim, init, fin):
         if hasattr(sim.data, 'initialize'):
@@ -303,6 +315,28 @@ class Simulator:
         self.__kernel.unbind(event_name, handler)
 
 
+SimRet = namedtuple('SimRet', ('data', 'sim_time'))
+
+
+class _SimulationInstance:
+    def __init__(self, model, initialize, params, logger_level, sim_time_limit):
+        self.model = model
+        self.initialize = initialize
+        self.params = params
+        self.logger_level = logger_level
+        self.sim_time_limit = sim_time_limit
+
+
+def _call_simulation_instance(sim_inst):
+    return DES.simulate(
+        model=sim_inst.model,
+        initialize=sim_inst.initialize,
+        params=sim_inst.params,
+        logger_level=sim_inst.logger_level,
+        sim_time_limit=sim_inst.sim_time_limit,
+    )
+
+
 class DES:
     events_mapping = {}
     initialize = None
@@ -325,18 +359,31 @@ class DES:
 
     @classmethod
     def simulate(cls, model, initialize=None, params=None,
-                 logger_level=Logger.Level.INFO, sim_time_limit=None):
+                 logger_level=Logger.Level.INFO, sim_time_limit=None,
+                 pool_size=4):
         initialize = initialize or cls.initialize
         params = {} if params is None else params
         if isinstance(params, list) or isinstance(params, tuple):
-            return [
-                cls.simulate(model, initialize, p, logger_level) for p in params
+            sim_instances = [
+                _SimulationInstance(
+                    model, initialize, p, logger_level, sim_time_limit
+                ) for p in params
             ]
+
+            if pool_size > 1:
+                with ThreadPool(pool_size) as a_pool:
+                    return a_pool.map(_call_simulation_instance, sim_instances)
+            else:
+                return [_call_simulation_instance(si) for si in sim_instances]
+
         kernel = Kernel()
         sim = Simulator(kernel, model, params, logger_level)
         kernel.setup(sim_time_limit=sim_time_limit)
+        sim.logger.debug(f'*** starting simulation with parameters:\n'
+                         f'{pformat(params)}\n'
+                         f'SIM TIME LIMIT: {sim_time_limit}')
         kernel.run(sim, init=initialize, fin=None)
-        return sim
+        return SimRet(sim.data, sim.sim_time)
 
 
 class DESModel:
@@ -350,4 +397,3 @@ class DESModel:
     @sim.setter
     def sim(self, value):
         self.__sim = value
-

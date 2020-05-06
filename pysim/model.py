@@ -40,17 +40,32 @@ class Trajectory(DESModel):
         self.radius = sim.params.reader.trajectory.radius
         self.velocity = sim.params.reader.trajectory.velocity
         self.altitude = sim.params.reader.trajectory.altitude
+        self.angle0 = sim.params.reader.trajectory.angle0
+        self.point_area_radius = sim.params.reader.trajectory.point_area_radius
+
+        self.__pos0 = asarray([
+            cos(self.angle0) * self.radius,
+            sin(self.angle0) * self.radius,
+            self.altitude
+        ])
 
     @property
     def angular_velocity(self):
         return self.velocity / self.radius
 
+    @property
+    def pos0(self):
+        return self.__pos0
+
     def get_position(self, t):
-        angle = (self.angular_velocity * t) % (2 * pi)
+        angle = (self.angular_velocity * t) % (2 * pi) + self.angle0
         x = cos(angle) * self.radius + self.center[0]
         y = sin(angle) * self.radius + self.center[1]
         z = self.altitude
         return asarray((x, y, z))
+
+    def is_in_start_area(self, pos):
+        return count_distance(pos, self.pos0) < self.point_area_radius
 
     def __str__(self):
         return f'Trajectory[C={self.center}, R={self.radius}, ' \
@@ -145,14 +160,28 @@ class RxOp:
         self.broken = broken
 
 
-# noinspection PyUnresolvedReferences
+# noinspection PyUnresolvedReferences,PyAttributeOutsideInit
 class DeviceMixin:
     @property
     def position(self):
         return self._position
 
     def update_position(self):
-        pass  # do nothing by default
+        if hasattr(self, 'trajectory'):
+            trajectory = self.trajectory
+            self._position = trajectory.get_position(self.sim.sim_time)
+            was_in_start_area = self._is_in_start_area
+            self._is_in_start_area = trajectory.is_in_start_area(self._position)
+            if not was_in_start_area and self._is_in_start_area:
+                self.handle_entered_start_area()
+            elif was_in_start_area and not self._is_in_start_area:
+                self.handle_left_start_area()
+
+    def handle_entered_start_area(self):
+        pass
+
+    def handle_left_start_area(self):
+        pass
 
 
 class Reader(DeviceMixin, DESModel):
@@ -161,6 +190,8 @@ class Reader(DeviceMixin, DESModel):
         self.network = network
         self.trajectory = Trajectory(sim)
         self._position = self.trajectory.get_position(0)
+        self._is_in_start_area = \
+            self.trajectory.is_in_start_area(self._position)
         self.tari = sim.params.reader.tari
         self.rtcal = sim.params.reader.rtcal
         self.trcal = sim.params.reader.trcal
@@ -194,9 +225,22 @@ class Reader(DeviceMixin, DESModel):
         self._round_index = 0
         self.read_timestamps = []
         self.num_collisions = 0
+        self.routes = []
 
-    def update_position(self):
-        self._position = self.trajectory.get_position(self.sim.sim_time)
+        # Call handle entered start area for the first time:
+        self.handle_entered_start_area()
+
+    def handle_entered_start_area(self):
+        self.sim.logger.info('entered start area')
+        self.routes.append({
+            't_start': self.sim.sim_time,
+            'tags_read': set(),
+            'first_round': None,
+            'last_round': None,
+        })
+
+    def handle_left_start_area(self):
+        self.sim.logger.info('left start area')
 
     def start_round(self):
         self._state = ReaderState.IDLE
@@ -219,6 +263,11 @@ class Reader(DeviceMixin, DESModel):
             'tags_turned_off': [],
             'tags_read': [],
         })
+        # Record first round index, if this is the first round
+        route = self.routes[-1]
+        if route['first_round'] is None:
+            route['first_round'] = self._round_index
+        self.routes[-1]['last_round'] = self._round_index  # update each round
 
     def _next_slot(self):
         if self._slot < self._num_slots:
@@ -317,6 +366,7 @@ class Reader(DeviceMixin, DESModel):
         elif isinstance(reply, AckReply):
             self.num_reads[tag_id] += 1
             self.rounds[-1]['tags_read'].append(tag_id)
+            self.routes[-1]['tags_read'].add(tag_id)
             if self.sim.params.reader.stats.record_read_timestamps:
                 self.read_timestamps.append(self.sim.sim_time)
             self._next_slot()
