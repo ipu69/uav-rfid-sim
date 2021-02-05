@@ -1,0 +1,1 @@
+/Library/Developer/CommandLineTools/usr/bin/c++  -g -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX10.15.sdk -Wl,-search_paths_first -Wl,-headerpad_max_install_names  CMakeFiles/csurm.dir/main.o CMakeFiles/csurm.dir/Scheduler.o CMakeFiles/csurm.dir/Protocol.o  -o csurm  /Library/Frameworks/Python.framework/Versions/3.8/lib/libpython3.8.dylib 

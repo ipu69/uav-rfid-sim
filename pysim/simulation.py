@@ -112,10 +112,6 @@ if __name__ == '__main__':
         update_spec(spec_, 'channel.ber', 0.01),
         update_spec(spec_, 'channel.ber', 0.02),
         update_spec(spec_, 'channel.ber', 0.03),
-        # update_spec(spec_, 'channel.ber', 0.04),
-        # update_spec(spec_, 'channel.ber', 0.05),
-        # update_spec(spec_, 'channel.ber', 0.06),
-        # update_spec(spec_, 'channel.ber', 0.07),
     ]
 
     # I define max simulation time as the time, needed to fly above each tag
